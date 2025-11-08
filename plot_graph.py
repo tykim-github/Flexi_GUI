@@ -20,7 +20,7 @@ class DataProcessor:
             lines = file.readlines()[34:]  # Skip header lines
             # cnt_pre=0
             for line in lines:
-                if 'Rx' in line and '037C' in line:
+                if 'Rx' in line and '0361' in line:
                     try:
                         # 'Rx' 위치를 찾고 데이터를 추출
                         index = line.index('Rx') + 5
@@ -69,7 +69,7 @@ class DataProcessor:
             lines = file.readlines()[34:]  # Skip header lines
             # cnt_pre=0
             for line in lines:
-                if 'Rx' in line and '037C' in line:
+                if 'Rx' in line and '0361' in line:
                     try:
                         # 'Rx' 위치를 찾고 데이터를 추출
                         index = line.index('Rx') + 5

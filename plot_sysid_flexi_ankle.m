@@ -1,4 +1,4 @@
-clear all;
+clear; clc; close all;
 
 % file_list=["250223_Flexi_Ankle_ID_0.4A_0.5Hz_20Hz_N15";"250223_Flexi_Ankle_ID_1A_0.2Hz_2Hz_N5";
 %     "250223_Flexi_Ankle_ID_1.5A_0.2Hz_0.5Hz_N2";"250223_Flexi_Ankle_ID_1.2A_0.2Hz_1Hz_N3";
@@ -8,9 +8,10 @@ clear all;
 % file_list=["250305_Flexi_Ankle_ID_1A_0.3Hz_3Hz";"250305_Flexi_Ankle_ID_1.2A_0.3Hz_3Hz";"250305_Flexi_Ankle_ID_1.5A_0.3Hz_3Hz"];
 % file_list=["1A_0.3Hz_3Hz";"1.2A_0.3Hz_3Hz";"1.5A_0.3Hz_3Hz";"0.7A_15Hz_20Hz";"0.7A_1Hz_7Hz";"0.5A_15Hz_20Hz";"0.5A_1Hz_7Hz"];
 % file_list=["0.5A_0.5Hz_8Hz";"1A_0.5Hz_2Hz";"1.5A_0.5Hz_2Hz";"1.5A_0.2Hz_2Hz";"2A_0.2Hz_1Hz"];
-common_name="250310_Flexi_Ankle_Vel_ID_";
+common_name="251108_Flexi_Ankle_ID_";
 % file_list=["1_0.5Hz_20Hz";"1_0.1Hz_1Hz";"2_0.5Hz_20Hz_2";"2_0.1Hz_1Hz";"3_0.5Hz_20Hz"];
-file_list=["2rads_2Hz_20Hz";"2_5rads_2Hz_20Hz";"3rads_2Hz_20Hz";"3_5rads_2Hz_20Hz";"2rads_0.1Hz_2Hz";"2_5rads_0.1Hz_2Hz";"3rads_0.1Hz_2Hz";"3_5rads_0.1Hz_2Hz"];
+file_list=["1rad"; "2rad"; "3rad" ];
+% file_list=["2rads_2Hz_20Hz";"2_5rads_2Hz_20Hz";"3rads_2Hz_20Hz";"3_5rads_2Hz_20Hz";"2rads_0.1Hz_2Hz";"2_5rads_0.1Hz_2Hz";"3rads_0.1Hz_2Hz";"3_5rads_0.1Hz_2Hz"];
 %%
 for i=1:length(file_list(:,1))
     if exist(common_name+file_list(i,:)+"(frequency_domain).txt",'file')
@@ -29,7 +30,7 @@ s= tf('s');
 % Jm = Ji*Kt*0.6; Bm = Bi*Kt*4;
 % Pm = 1/(Jm*s^2+Bm*s);
 % Kt=52.5*0.6*10^-3; ps=6*10^-3; Jm=0.007; Bm=0.004; kf=1.157*1.5;
-Kt=52.5*0.8*10^-3; ps=6*10^-3; Jm=0.003; Bm=0.2; kf=1.157*1.5; eta=0.9;
+Kt=52.5*0.5*10^-3; ps=6*10^-3; Jm=0.003; Bm=0.2; kf=1.157*1.5; eta=0.9;
 Kp=0.9; Ki=0; Kd=0;
 % Kp=30; Ki=0.2; Kd=0;
 C=Kp+Kd*s+Ki/s;

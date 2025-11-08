@@ -6,6 +6,7 @@ filename = sprintf('%s.txt', t_filename);
 data=importdata(filename, '\t', 1);  % 첫 번째 줄은 헤더로 읽어들임
 
 % (3) 열 데이터를 변수로 분리
+% cnt freq cur force enc1 motor_vel
 raw_data=data.data;
 unique_rows = [true; diff(raw_data(:,1)) ~= 0];
 filtered_data = raw_data(unique_rows, :);
@@ -14,7 +15,7 @@ figure(101); plot(cnt);
 freq=filtered_data(:,2);
 cur=filtered_data(:,3);
 force=filtered_data(:,4);
-enc=filtered_data(:,5);
+vel_ref=filtered_data(:,5);
 mot_vel=filtered_data(:,6);
 cnt_vel=cnt-circshift(cnt, 1);
 idx = find(cnt_vel<0,1,"last");
@@ -29,10 +30,10 @@ cnt=cnt(idx:end);
 freq=freq(idx:end);
 cur=cur(idx:end);
 force=force(idx:end);
-enc=enc(idx:end);
+vel_ref=vel_ref(idx:end);
 mot_vel=mot_vel(idx:end);
 figure(100);
-plot(cur); hold on; plot(enc);
+plot(cur); hold on; plot(vel_ref);
 figure(101);
 hold on; plot(cnt);
 %% Spline Data
@@ -45,7 +46,7 @@ disp(length(cnt));
 disp(length(new_cnt))
 % splined_cur  = spline(cnt,cur,new_cnt);
 % splined_spring_ang  = spline(cnt,spring_ang,new_cnt);
-splined_cur  = enc;
+splined_cur  = vel_ref;
 splined_spring_ang  = force;
 
 %% Divide frequency by frequency

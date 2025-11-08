@@ -122,7 +122,7 @@ class GUI(QWidget):
     State_Enable  = 2
     State_Error   = 3
 
-    node_id=0x07
+    node_id=0x06
 
     MECH_SYS_ID_SBS_RAW_DATA    =0x14
     # MSG FNC CODE
@@ -249,7 +249,7 @@ class GUI(QWidget):
     ROUTINE_ID_MIDLEVEL_ANKLE_COMPENSATOR          =0x1E
 
     trigger_stop_sysid = pyqtSignal()
-    def __init__(self,PcanHandle= PCAN_USBBUS1, IsFD=True, Bitrate=PCAN_BAUD_500K, BitrateFD = b'f_clock_mhz=80,nom_brp=1,nom_tseg1=127,nom_tseg2=32,nom_sjw=32,data_brp=1,data_tseg1=11,data_tseg2=4,data_sjw=4'):
+    def __init__(self,PcanHandle= PCAN_USBBUS1, IsFD=True, Bitrate=PCAN_BAUD_1M, BitrateFD = b'f_clock_mhz=80,nom_brp=10,nom_tseg1=5,nom_tseg2=2,nom_sjw=2,data_brp=1,data_tseg1=11,data_tseg2=4,data_sjw=4'):
         super().__init__()
         """
         Create an object starts the programm
@@ -771,6 +771,7 @@ class GUI(QWidget):
                     self.pack_sdoUnit(self.TASK_ID_MSG,       self.SDO_ID_MSG_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_MSG_PDO_SEND),
                     self.pack_sdoUnit(self.TASK_ID_LOWLEVEL,  self.SDO_ID_LOWLEVEL_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_LOWLEVEL_CURRENT_CTRL),
                     self.pack_sdoUnit(self.TASK_ID_MIDLEVEL,  self.SDO_ID_MIDLEVEL_SET_ROUTINE, self.SDO_REQU, 2, [self.ROUTINE_ID_MIDLEVEL_VELOCITY_CTRL, self.ROUTINE_ID_MIDLEVEL_SYS_ID_SBS])                                                                                      
+                    # self.pack_sdoUnit(self.TASK_ID_MIDLEVEL,  self.SDO_ID_MIDLEVEL_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_MIDLEVEL_VELOCITY_CTRL)
                 ]
         msg = self.flatten_list(msg)
         self.send_msg(msg)
@@ -874,11 +875,11 @@ class GUI(QWidget):
         self.send_msg(msg)
 
         ## State transition to Enable ##
-        msg=[1, 
+        msg=[3, 
              self.pack_sdoUnit(self.TASK_ID_MSG,       self.SDO_ID_MSG_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_MSG_PDO_SEND)
-            #  ,
-            #  self.pack_sdoUnit(self.TASK_ID_LOWLEVEL, self.SDO_ID_LOWLEVEL_SET_STATE, self.SDO_REQU, 1, self.State_Enable),
-            #  self.pack_sdoUnit(self.TASK_ID_LOWLEVEL, self.SDO_ID_LOWLEVEL_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_LOWLEVEL_CURRENT_CTRL)
+             ,
+             self.pack_sdoUnit(self.TASK_ID_LOWLEVEL, self.SDO_ID_LOWLEVEL_SET_STATE, self.SDO_REQU, 1, self.State_Enable),
+             self.pack_sdoUnit(self.TASK_ID_LOWLEVEL, self.SDO_ID_LOWLEVEL_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_LOWLEVEL_CURRENT_CTRL)
              
              ]
         msg = self.flatten_list(msg)
@@ -908,11 +909,11 @@ class GUI(QWidget):
         if self.Fric.isChecked()==True:
             self.routine_list.extend([self.ROUTINE_ID_MIDLEVEL_ANKLE_COMPENSATOR])
 
-        msg=[1, 
+        msg=[3, 
              self.pack_sdoUnit(self.TASK_ID_MSG,       self.SDO_ID_MSG_SET_STATE,      self.SDO_REQU, 1, self.State_Enable)
-            #  ,
-            #  self.pack_sdoUnit(self.TASK_ID_MIDLEVEL, self.SDO_ID_MIDLEVEL_SET_STATE, self.SDO_REQU, 1, self.State_Enable),
-            #  self.pack_sdoUnit(self.TASK_ID_MIDLEVEL, self.SDO_ID_MIDLEVEL_SET_ROUTINE, self.SDO_REQU, len(self.routine_list), self.routine_list)
+             ,
+             self.pack_sdoUnit(self.TASK_ID_MIDLEVEL, self.SDO_ID_MIDLEVEL_SET_STATE, self.SDO_REQU, 1, self.State_Enable),
+             self.pack_sdoUnit(self.TASK_ID_MIDLEVEL, self.SDO_ID_MIDLEVEL_SET_ROUTINE, self.SDO_REQU, len(self.routine_list), self.routine_list)
              ]
         msg = self.flatten_list(msg)
         self.send_msg(msg)
@@ -1567,7 +1568,7 @@ class GUI(QWidget):
 
     def showData(self, data, id):
         if self.sysid_done ==0:
-            if id==0x37C:
+            if id==0x361:
                 strTemp = b""
                 for x in data:
                     strTemp += b'%.2X ' % x
@@ -1595,7 +1596,7 @@ class GUI(QWidget):
                 # self.Linear_label.lineEdit.setText(f"{data8}")
                 # self.Phase_label.lineEdit.setText(f"{data10}")
         elif self.sysid_done == 1:
-            if id==0x37C:
+            if id==0x361:
                 strTemp = b""
                 for x in data:
                     strTemp += b'%.2X ' % x

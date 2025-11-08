@@ -1,5 +1,5 @@
 close all; clear all; clc;
-filename = '20250307225949_PD_FF_DOB_LS_Kp0.2_Kd0.0001_T5_P55_R0.714_W60.txt';
+filename = '20251108191408_PD_LS_Kp0.2_Kd0.0001_T5_P55_R0.714_W60.txt';
 data=importdata(filename, '\t', 1);  % 첫 번째 줄은 헤더로 읽어들임
 
 % (3) 열 데이터를 변수로 분리
