@@ -1,25 +1,24 @@
 clear; clc; close all;
 
-% file_list=["250223_Flexi_Ankle_ID_0.4A_0.5Hz_20Hz_N15";"250223_Flexi_Ankle_ID_1A_0.2Hz_2Hz_N5";
-%     "250223_Flexi_Ankle_ID_1.5A_0.2Hz_0.5Hz_N2";"250223_Flexi_Ankle_ID_1.2A_0.2Hz_1Hz_N3";
-%     "250223_Flexi_Ankle_ID_0.9A_3";"250223_Flexi_Ankle_ID_0.7A"];
+% common_name='251108_Flexi_Ankle_R_ID_';
+common_name='251108_Flexi_Ankle_L_ID_';
 
-% file_list=["250304_Flexi_Ankle_ID_0.5A_0.5Hz_20Hz";"250304_Flexi_Ankle_ID_1A";"250304_Flexi_Ankle_ID_0.7A"];
-% file_list=["250305_Flexi_Ankle_ID_1A_0.3Hz_3Hz";"250305_Flexi_Ankle_ID_1.2A_0.3Hz_3Hz";"250305_Flexi_Ankle_ID_1.5A_0.3Hz_3Hz"];
-% file_list=["1A_0.3Hz_3Hz";"1.2A_0.3Hz_3Hz";"1.5A_0.3Hz_3Hz";"0.7A_15Hz_20Hz";"0.7A_1Hz_7Hz";"0.5A_15Hz_20Hz";"0.5A_1Hz_7Hz"];
-% file_list=["0.5A_0.5Hz_8Hz";"1A_0.5Hz_2Hz";"1.5A_0.5Hz_2Hz";"1.5A_0.2Hz_2Hz";"2A_0.2Hz_1Hz"];
-common_name="251108_Flexi_Ankle_ID_";
-% file_list=["1_0.5Hz_20Hz";"1_0.1Hz_1Hz";"2_0.5Hz_20Hz_2";"2_0.1Hz_1Hz";"3_0.5Hz_20Hz"];
-file_list=["1rad"; "2rad"; "3rad" ];
-% file_list=["2rads_2Hz_20Hz";"2_5rads_2Hz_20Hz";"3rads_2Hz_20Hz";"3_5rads_2Hz_20Hz";"2rads_0.1Hz_2Hz";"2_5rads_0.1Hz_2Hz";"3rads_0.1Hz_2Hz";"3_5rads_0.1Hz_2Hz"];
+scriptDir = fileparts(mfilename('fullpath'));
+fileList = dir(fullfile(scriptDir, [common_name '*']));
+fileNames = string({fileList.name});
+fileNames = extractBefore(fileNames, ".txt");
+
+
 %%
-for i=1:length(file_list(:,1))
-    if exist(common_name+file_list(i,:)+"(frequency_domain).txt",'file')
-        disp(common_name+file_list(i,:)+"(frequency_domain).txt")
+for i=1:length(fileNames)
+    if exist("Frequency_domain_"+fileNames(i),'file')
+        disp("Frequency_domain_"+fileNames(i)+".txt")
     else
-        do_sys_id_analysis_flexi_ankle(common_name+file_list(i,:));
+        do_sys_id_analysis_flexi_ankle(fileNames(i));
     end
 end
+
+
 %%
 close all;
 s= tf('s');
@@ -30,16 +29,22 @@ s= tf('s');
 % Jm = Ji*Kt*0.6; Bm = Bi*Kt*4;
 % Pm = 1/(Jm*s^2+Bm*s);
 % Kt=52.5*0.6*10^-3; ps=6*10^-3; Jm=0.007; Bm=0.004; kf=1.157*1.5;
-Kt=52.5*0.5*10^-3; ps=6*10^-3; Jm=0.003; Bm=0.2; kf=1.157*1.5; eta=0.9;
-Kp=0.9; Ki=0; Kd=0;
+Kt=52.5*1.0*10^-3; 
+ps=6*10^-3; 
+Jm=0.003; 
+Bm=0.2; 
+kf=0.275; %Nm/rad by experiment
+eta=0.9;
+
+Kp=0.9; Ki=0.0001; Kd=0;
 % Kp=30; Ki=0.2; Kd=0;
 C=Kp+Kd*s+Ki/s;
 
 % Psys = Kt*2*3.14/ps*kf/(Jm*C*s^2+(C*Bm+1)*s+kf)
-Psys = eta*2*3.14/ps*kf*C*Kt/(Jm*s^2+(Bm+C*Kt)*s+kf)
+Psys = eta*2*pi/ps*kf*C*Kt/(Jm*s^2+(Bm+C*Kt)*s+kf)
 Psys=minreal(Psys);
 
-Psys2 = eta*Kt*2*3.14/ps*kf/(Jm*s^2+Bm*s+kf)
+Psys2 = eta*Kt*2*pi/ps*kf/(Jm*s^2+Bm*s+kf)
 % [ns,ds] = tfdata(Psys,'v');
 % Psys2 = tf(ns(3)+ns(4),ds(1:3));
 % 
@@ -51,7 +56,7 @@ phase_nominal=phase_tf_measured(:);
 mag_nominal2=mag_tf_measured2(:);
 phase_nominal2=phase_tf_measured2(:);
 
-data = cell(length(file_list(:,1)),1);
+data = cell(length(fileNames),1);
 colors = [
     0 0.4470 0.7410;  % 파랑
     0.8500 0.3250 0.0980;  % 빨강
@@ -62,8 +67,8 @@ colors = [
     0.4660 0.6740 0.1880;  % 초록
     0.4940 0.1840 0.5560;  % 보라
 ];
-for i=1:length(file_list(:,1))
-    filename = sprintf('%s(frequency_domain).txt', common_name+file_list(i,:));
+for i=1:length(fileNames)
+    filename = sprintf('Frequency_domain_%s.txt', fileNames(i));
     data{i} = load(filename);
     freq=data{i}(:,1);
     mag=data{i}(:,2);

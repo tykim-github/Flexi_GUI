@@ -122,7 +122,8 @@ class GUI(QWidget):
     State_Enable  = 2
     State_Error   = 3
 
-    node_id=0x06
+    # node_id=0x06 # RIGHT
+    node_id=0x07 # LEFT
 
     MECH_SYS_ID_SBS_RAW_DATA    =0x14
     # MSG FNC CODE
@@ -1568,7 +1569,7 @@ class GUI(QWidget):
 
     def showData(self, data, id):
         if self.sysid_done ==0:
-            if id==0x361:
+            if id==0x371:
                 strTemp = b""
                 for x in data:
                     strTemp += b'%.2X ' % x
@@ -1596,7 +1597,7 @@ class GUI(QWidget):
                 # self.Linear_label.lineEdit.setText(f"{data8}")
                 # self.Phase_label.lineEdit.setText(f"{data10}")
         elif self.sysid_done == 1:
-            if id==0x361:
+            if id==0x371:
                 strTemp = b""
                 for x in data:
                     strTemp += b'%.2X ' % x

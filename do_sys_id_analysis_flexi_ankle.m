@@ -11,7 +11,7 @@ raw_data=data.data;
 unique_rows = [true; diff(raw_data(:,1)) ~= 0];
 filtered_data = raw_data(unique_rows, :);
 cnt=filtered_data(:,1);
-figure(101); plot(cnt);
+% figure(101); plot(cnt);
 freq=filtered_data(:,2);
 cur=filtered_data(:,3);
 force=filtered_data(:,4);
@@ -32,10 +32,10 @@ cur=cur(idx:end);
 force=force(idx:end);
 vel_ref=vel_ref(idx:end);
 mot_vel=mot_vel(idx:end);
-figure(100);
-plot(cur); hold on; plot(vel_ref);
-figure(101);
-hold on; plot(cnt);
+% figure(100);
+% plot(cur); hold on; plot(vel_ref);
+% figure(101);
+% hold on; plot(cnt);
 %% Spline Data
 len=length(cnt);
 new_cnt = 1:len;
@@ -103,7 +103,7 @@ for i = 1:N_samples
 %     cell_cutted_vel{i} = cell_filter_vel{i}(fix(end/2):end);
     cell_cutted_cur{i} = cell_filter_cur{i}(fix(end*0.25):fix(end*0.75));
     cell_cutted_vel{i} = cell_filter_vel{i}(fix(end*0.25):fix(end*0.75));
-    figure(i); plot(cell_vel{i},'k'); hold on; plot(cell_filter_vel{i},'b'); plot(cell_filter_cur{i}*10,'r'); 
+    % figure(i); plot(cell_vel{i},'k'); hold on; plot(cell_filter_vel{i},'b'); plot(cell_filter_cur{i}*10,'r'); 
     
 end
 
@@ -137,5 +137,5 @@ end
 %%
 datamatrix = [frequency_samples', tf_mag', tf_phase']; 
 
-name = sprintf('%s(frequency_domain).txt', t_filename);
+name = sprintf('Frequency_domain_%s.txt', t_filename);
 writematrix(datamatrix, name);
