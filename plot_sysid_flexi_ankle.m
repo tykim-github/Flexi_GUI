@@ -1,7 +1,6 @@
 clear; clc; close all;
 
-% common_name='251108_Flexi_Ankle_R_ID_';
-common_name='251108_Flexi_Ankle_L_ID_';
+common_name='251117_Flexi_Ankle_L_ID_';
 
 scriptDir = fileparts(mfilename('fullpath'));
 fileList = dir(fullfile(scriptDir, [common_name '*']));
@@ -29,14 +28,18 @@ s= tf('s');
 % Jm = Ji*Kt*0.6; Bm = Bi*Kt*4;
 % Pm = 1/(Jm*s^2+Bm*s);
 % Kt=52.5*0.6*10^-3; ps=6*10^-3; Jm=0.007; Bm=0.004; kf=1.157*1.5;
-Kt=52.5*1.0*10^-3; 
-ps=6*10^-3; 
-Jm=0.003; 
-Bm=0.2; 
-kf=0.275; %Nm/rad by experiment
-eta=0.9;
 
-Kp=0.9; Ki=0.0001; Kd=0;
+% Flexi-Right
+% -------------------------------
+Kt=52.5*0.8*10^-3; 
+ps=6*10^-3; 
+Jm=0.002; 
+Bm=0.3; 
+kf=1.157*1.3; %Nm/rad by experiment
+eta=0.9;
+% -------------------------------
+
+Kp=0.9; Ki=0; Kd=0;
 % Kp=30; Ki=0.2; Kd=0;
 C=Kp+Kd*s+Ki/s;
 
@@ -44,7 +47,7 @@ C=Kp+Kd*s+Ki/s;
 Psys = eta*2*pi/ps*kf*C*Kt/(Jm*s^2+(Bm+C*Kt)*s+kf)
 Psys=minreal(Psys);
 
-Psys2 = eta*Kt*2*pi/ps*kf/(Jm*s^2+Bm*s+kf)
+% Psys2 = eta*Kt*2*pi/ps*kf/(Jm*s^2+Bm*s+kf)
 % [ns,ds] = tfdata(Psys,'v');
 % Psys2 = tf(ns(3)+ns(4),ds(1:3));
 % 
@@ -52,9 +55,9 @@ Psys2 = eta*Kt*2*pi/ps*kf/(Jm*s^2+Bm*s+kf)
 mag_nominal=mag_tf_measured(:);
 phase_nominal=phase_tf_measured(:);
 
-[mag_tf_measured2, phase_tf_measured2, wout2]=bode(minreal(Psys2));
-mag_nominal2=mag_tf_measured2(:);
-phase_nominal2=phase_tf_measured2(:);
+% [mag_tf_measured2, phase_tf_measured2, wout2]=bode(minreal(Psys2));
+% mag_nominal2=mag_tf_measured2(:);
+% phase_nominal2=phase_tf_measured2(:);
 
 data = cell(length(fileNames),1);
 colors = [
@@ -67,6 +70,8 @@ colors = [
     0.4660 0.6740 0.1880;  % 초록
     0.4940 0.1840 0.5560;  % 보라
 ];
+
+fig = figure('Position', [50 50 800 1000]);
 for i=1:length(fileNames)
     filename = sprintf('Frequency_domain_%s.txt', fileNames(i));
     data{i} = load(filename);
@@ -79,7 +84,6 @@ for i=1:length(fileNames)
 %     mag_nom=squeeze(mag_nom);
 % 
 %     E=abs((mag_nom-mag_lin)./mag_nom);
-    figure(1);
     subplot(2,1,1);
     semilogx(freq, mag, '.-','lineWidth',1.2,'Color',colors(i,:)); hold on;
     xlim([0.1 20]); xlabel('Frequency(Hz)'); ylabel('Magnitude(dB)');
@@ -97,7 +101,7 @@ semilogx(wout/2/pi, 20*log10(mag_nominal),'k','LineWidth',1.5);
 % semilogx(wout2/2/pi, 20*log10(mag_nominal2),'k','LineWidth',1.0); 
 subplot(2,1,2);
 semilogx(wout/2/pi, phase_nominal,'k','LineWidth',1.5);
-semilogx(wout2/2/pi, phase_nominal2,'k','LineWidth',1.0);
+% semilogx(wout2/2/pi, phase_nominal2,'k','LineWidth',1.0);
 
 % xlim([0.2 20]); ylim([-60 -5]); xlabel('Frequency(Hz)'); ylabel('Magnitude(dB)');
 % legend('G.C 10%','G.C 40%','G.C 70%','Nominal model')
@@ -125,8 +129,11 @@ ds/ns(3)
 Psysd = c2d(Psys,0.001,'zoh');
 [n,d] = tfdata(Psysd,'v');
 Psysd2 = tf(n(2)+n(3),d,0.001);
-dob(Psysd2, 20, [2 0]);
-bode(Psysd2); hold on; bode(Psysd)
+
+figure(2);
+dob(Psysd2, 15, [2 0]);
+bode(Psysd);hold on;
+bode(Psysd2); 
 %%
 Pptc=ptc(Psysd2)
 function [mag, phase, wout]=bodeplot(dataname)

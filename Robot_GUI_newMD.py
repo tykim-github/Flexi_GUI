@@ -9,6 +9,14 @@ import threading
 import struct
 import time
 from plot_graph import *
+import numpy as np
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+from collections import deque
+import glob
+import os
+
 
 class TitleLabel(QLabel):
      def __init__(self, text, fontsize=15):
@@ -26,6 +34,49 @@ class TextLabel(QLabel):
         font.setPointSize(fontsize)
         # font.setBold(True)
         self.setFont(font)
+
+class RealtimePMMGPlotter(FigureCanvas):
+    """pMMG 데이터 실시간 그래프 표시"""
+    def __init__(self, parent=None, max_points=500):
+        self.fig = Figure(figsize=(10, 6), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        super().__init__(self.fig)
+        self.setParent(parent)
+        
+        # 데이터 저장용 deque (최대 500개 포인트)
+        self.max_points = max_points
+        self.pmmg1_data = deque(maxlen=max_points)
+        self.pmmg2_data = deque(maxlen=max_points)
+        self.pmmg3_data = deque(maxlen=max_points)
+        self.time_data = deque(maxlen=max_points)
+        self.time_counter = 0
+        
+    def update_data(self, pmmg1, pmmg2, pmmg3):
+        """새 데이터 추가 및 그래프 업데이트"""
+        self.pmmg1_data.append(pmmg1)
+        self.pmmg2_data.append(pmmg2)
+        self.pmmg3_data.append(pmmg3)
+        self.time_data.append(self.time_counter)
+        self.time_counter += 1
+        
+        self.plot_data()
+        
+    def plot_data(self):
+        """그래프 렌더링"""
+        self.ax.clear()
+        
+        if len(self.time_data) > 0:
+            self.ax.plot(list(self.time_data), list(self.pmmg1_data), 'b-', label='pMMG1', linewidth=2)
+            self.ax.plot(list(self.time_data), list(self.pmmg2_data), 'r-', label='pMMG2', linewidth=2)
+            self.ax.plot(list(self.time_data), list(self.pmmg3_data), 'g-', label='pMMG3', linewidth=2)
+        
+        self.ax.set_xlabel('Sample')
+        self.ax.set_ylabel('Amplitude')
+        self.ax.set_title('Real-time pMMG Signal')
+        self.ax.legend(loc='upper left')
+        self.ax.grid(True, alpha=0.3)
+        self.fig.tight_layout()
+        self.draw()
 class lb(QWidget):
     def __init__(self, label_text, init_value=0):
         super().__init__()
@@ -122,8 +173,8 @@ class GUI(QWidget):
     State_Enable  = 2
     State_Error   = 3
 
-    # node_id=0x06 # RIGHT
-    node_id=0x07 # LEFT
+    node_id=0x06 # LEFT
+    # node_id=0x07 # RIGHT
 
     MECH_SYS_ID_SBS_RAW_DATA    =0x14
     # MSG FNC CODE
@@ -206,7 +257,7 @@ class GUI(QWidget):
     PDO_ID_MIDLEVEL_VEL_PID_CTRL_INPUT          =0x08
     PDO_ID_MIDLEVEL_VSD_INPUT                   =0x09
     PDO_ID_MIDLEVEL_UNIT_TRAJECTORY_BUFF_COUNT  =0x0A
-    PDO_ID_MIDLEVEL_F_VECTOR_INPUT              =0x0B
+    PDO_ID_MIDLEVEL_F_VECTOR_INPUT              =0x0B # PMMG 4 FUCKING BUGG
     PDO_ID_MIDLEVEL_ABSENCODER1_POSITION        =0x0C
     PDO_ID_MIDLEVEL_ABSENCODER2_POSITION        =0x0D
     PDO_ID_MIDLEVEL_DOB_DISTURABNCE             =0x0E
@@ -229,6 +280,11 @@ class GUI(QWidget):
     PDO_ID_MIDLEVEL_REF_IMPEDANCE               =0x1F
     PDO_ID_MIDLEVEL_AC_CTRL_INPUT               =0x20
     PDO_ID_MIDLEVEL_LOADCELL_TORQUE             =0x21
+
+    PDO_ID_MIDLEVEL_PMMG1                       =0x22
+    PDO_ID_MIDLEVEL_PMMG2                       =0x23
+    PDO_ID_MIDLEVEL_PMMG3                       =0x24 
+
     ############ Routine MSG      #########################
     ROUTINE_ID_MSG_PDO_SEND                     =0x00
     ############ Routine LOWLEVEL #########################
@@ -248,7 +304,7 @@ class GUI(QWidget):
     ROUTINE_ID_MIDLEVEL_RISK_MANAGEMENT            =0x1B
     ROUTINE_ID_MIDLEVEL_ANKLE_REF_PERIODIC         =0x1D
     ROUTINE_ID_MIDLEVEL_ANKLE_COMPENSATOR          =0x1E
-
+    ROUTINE_ID_MIDLEVEL_PROPORTIONAL_ASSIST        =0x1F
     trigger_stop_sysid = pyqtSignal()
     def __init__(self,PcanHandle= PCAN_USBBUS1, IsFD=True, Bitrate=PCAN_BAUD_1M, BitrateFD = b'f_clock_mhz=80,nom_brp=10,nom_tseg1=5,nom_tseg2=2,nom_sjw=2,data_brp=1,data_tseg1=11,data_tseg2=4,data_sjw=4'):
         super().__init__()
@@ -262,11 +318,14 @@ class GUI(QWidget):
         self.TimerInterval = 1000
         self.sysid_done = 0
         
+        # pMMG 데이터 저장
+        self.pmmg_data = {'time': [], 'pmmg1': [], 'pmmg2': [], 'pmmg3': []}
+        self.pmmg_capture_running = False
+        
         ## Checks if PCANBasic.dll is available, if not, the program terminates
         self.initUI()
         self.connect()
         self.trigger_stop_sysid.connect(self.sysid_stop)
-        
         
 
 
@@ -561,6 +620,7 @@ class GUI(QWidget):
         self.tabs = QTabWidget()
         self.tab1 = QWidget()
         self.tab2 = QWidget()
+        self.tab3 = QWidget()
 
         # Tab1 구성: 기존 메인 레이아웃을 Tab1으로 이동
         tab1_layout = QVBoxLayout()
@@ -571,10 +631,16 @@ class GUI(QWidget):
         tab2_layout=QVBoxLayout()
         self.configureTab2(tab2_layout)
         self.tab2.setLayout(tab2_layout)
+        
+        # Tab3 pMMG Real-time
+        tab3_layout = QVBoxLayout()
+        self.configureTab3(tab3_layout)
+        self.tab3.setLayout(tab3_layout)
 
         # Tabs에 추가
         self.tabs.addTab(self.tab1, "Human Walking Test")
         self.tabs.addTab(self.tab2, "System Identification")
+        self.tabs.addTab(self.tab3, "pMMG Real-time")
 
         # 전체 레이아웃
         mainLayout = QVBoxLayout(self)
@@ -623,6 +689,60 @@ class GUI(QWidget):
         # new_button = QPushButton('New Button')
         # layout.addWidget(new_label)
         # layout.addWidget(new_button)
+
+    def configureTab3(self, layout):
+        """Tab3 - pMMG Real-time Monitoring"""
+        # 제목
+        pmmg_title = TitleLabel('pMMG Real-time Signal')
+        layout.addWidget(pmmg_title)
+        
+        # 그래프 캔버스
+        self.pmmg_plotter = RealtimePMMGPlotter(self)
+        layout.addWidget(self.pmmg_plotter)
+        
+        # 정보 박스
+        pmmg_info_layout = QHBoxLayout()
+        self.pmmg_infoBox = QLineEdit('')
+        self.pmmg_infoBox.setReadOnly(True)
+        pmmg_info_layout.addWidget(self.pmmg_infoBox)
+        layout.addLayout(pmmg_info_layout)
+        
+        # 버튼 레이아웃
+        pmmg_button_layout = QHBoxLayout()
+        
+        # pMMG 캡처 시작 버튼
+        self.button_pmmg_capture = QPushButton("CAPTURE pMMG")
+        self.button_pmmg_capture.setStyleSheet("background-color: black; color: white;font-size: 12pt; font-weight: bold;")
+        self.button_pmmg_capture.setFixedSize(150, 50)
+        self.button_pmmg_capture.clicked.connect(self.pmmg_capture_data)
+        self.button_pmmg_capture.setCheckable(True)
+        
+        # pMMG 중지 버튼
+        self.button_pmmg_stop = QPushButton("STOP pMMG")
+        self.button_pmmg_stop.setStyleSheet("background-color: red; color: white;font-size: 12pt; font-weight: bold;")
+        self.button_pmmg_stop.setFixedSize(150, 50)
+        self.button_pmmg_stop.clicked.connect(self.pmmg_stop_capture)
+        self.button_pmmg_stop.setCheckable(True)
+        
+        # pMMG 데이터 저장 버튼
+        self.button_pmmg_save = QPushButton("SAVE pMMG")
+        self.button_pmmg_save.setStyleSheet("background-color: blue; color: white;font-size: 12pt; font-weight: bold;")
+        self.button_pmmg_save.setFixedSize(150, 50)
+        self.button_pmmg_save.clicked.connect(self.pmmg_save_data)
+        
+        # pMMG 파일명 입력
+        self.pmmg_file_name = QLineEdit()
+        self.pmmg_file_name.setText("pMMG_data")
+        
+        pmmg_button_layout.addWidget(QLabel("File Name:"))
+        pmmg_button_layout.addWidget(self.pmmg_file_name)
+        pmmg_button_layout.addStretch(1)
+        pmmg_button_layout.addWidget(self.button_pmmg_capture)
+        pmmg_button_layout.addWidget(self.button_pmmg_stop)
+        pmmg_button_layout.addWidget(self.button_pmmg_save)
+        
+        layout.addLayout(pmmg_button_layout)
+        layout.addStretch(1)
 
 
     def init_torque(self):
@@ -851,6 +971,81 @@ class GUI(QWidget):
         processor.sysid_load_data()
         self.show_plot_window(processor.data)
         self.data=processor.data
+    
+    def pmmg_capture_data(self):
+        """pMMG 데이터 캡처 시작"""
+        self.pmmg_capture_running = True
+        self.pmmg_data = {'time': [], 'pmmg1': [], 'pmmg2': [], 'pmmg3': []}
+        self.pmmg_plotter.time_counter = 0
+        self.pmmg_infoBox.setText("pMMG data capture started...")
+        self.button_pmmg_capture.setChecked(True)
+        self.button_pmmg_stop.setChecked(False)
+        
+        # PDO 리스트 설정하여 pMMG 데이터 수신
+        msg = [4, 
+               self.pack_sdoUnit(self.TASK_ID_MSG, self.SDO_ID_MSG_SET_STATE, self.SDO_REQU, 1, self.State_Standby),
+               self.TASK_ID_MSG, self.SDO_ID_MSG_PDO_LIST, self.SDO_REQU, 3,
+               self.TASK_ID_MIDLEVEL, self.PDO_ID_MIDLEVEL_PMMG1,
+               self.TASK_ID_MIDLEVEL, self.PDO_ID_MIDLEVEL_PMMG2,
+               self.TASK_ID_MIDLEVEL, self.PDO_ID_MIDLEVEL_PMMG3,
+               self.pack_sdoUnit(self.TASK_ID_MSG, self.SDO_ID_MSG_GUI_COMM_ONOFF, self.SDO_REQU, 1, 0),
+               self.pack_sdoUnit(self.TASK_ID_MSG, self.SDO_ID_MSG_GUI_COMM_COMMAND, self.SDO_REQU, 1, 0x0B)  # pMMG 커맨드
+               ]
+        msg = self.flatten_list(msg)
+        self.send_msg(msg)
+        
+        time.sleep(0.5)
+        
+        msg = [1, 
+               self.pack_sdoUnit(self.TASK_ID_MSG, self.SDO_ID_MSG_SET_ROUTINE, self.SDO_REQU, 1, self.ROUTINE_ID_MSG_PDO_SEND)]
+        msg = self.flatten_list(msg)
+        self.send_msg(msg)
+        
+        time.sleep(0.5)
+        
+        msg = [1, 
+               self.pack_sdoUnit(self.TASK_ID_MSG, self.SDO_ID_MSG_SET_STATE, self.SDO_REQU, 1, self.State_Enable)]
+        msg = self.flatten_list(msg)
+        self.send_msg(msg)
+    
+    def pmmg_stop_capture(self):
+        """pMMG 데이터 캡처 중지"""
+        self.pmmg_capture_running = False
+        self.pmmg_infoBox.setText("pMMG data capture stopped.")
+        self.button_pmmg_capture.setChecked(False)
+        self.button_pmmg_stop.setChecked(True)
+        
+        msg = [1, 
+               self.pack_sdoUnit(self.TASK_ID_MSG, self.SDO_ID_MSG_SET_STATE, self.SDO_REQU, 1, self.State_Standby)]
+        msg = self.flatten_list(msg)
+        self.send_msg(msg)
+    
+    def pmmg_save_data(self):
+        """pMMG 데이터 파일로 저장"""
+        if not self.pmmg_data['pmmg1']:
+            self.pmmg_infoBox.setText("No pMMG data to save.")
+            return
+        
+        filename = self.pmmg_file_name.text()
+        if not filename:
+            filename = "pMMG_data"
+        
+        filename = filename + '.txt'
+        
+        try:
+            data_array = np.column_stack([
+                self.pmmg_data['time'],
+                self.pmmg_data['pmmg1'],
+                self.pmmg_data['pmmg2'],
+                self.pmmg_data['pmmg3']
+            ])
+            header = "time pmmg1 pmmg2 pmmg3"
+            np.savetxt(filename, data_array, header=header, fmt='%.6f', delimiter='\t')
+            self.pmmg_infoBox.setText(f"pMMG data saved to {filename}")
+            print(f"pMMG data saved to {filename}")
+        except Exception as e:
+            self.pmmg_infoBox.setText(f"Error saving pMMG data: {str(e)}")
+            print(f"Error saving pMMG data: {e}")
     def robot_on(self):
         self.button_roboton.setChecked(True)
         self.button_robotoff.setChecked(False)
@@ -1569,7 +1764,7 @@ class GUI(QWidget):
 
     def showData(self, data, id):
         if self.sysid_done ==0:
-            if id==0x371:
+            if id==0x361:
                 strTemp = b""
                 for x in data:
                     strTemp += b'%.2X ' % x
@@ -1597,7 +1792,7 @@ class GUI(QWidget):
                 # self.Linear_label.lineEdit.setText(f"{data8}")
                 # self.Phase_label.lineEdit.setText(f"{data10}")
         elif self.sysid_done == 1:
-            if id==0x371:
+            if id==0x361:
                 strTemp = b""
                 for x in data:
                     strTemp += b'%.2X ' % x
@@ -1610,6 +1805,31 @@ class GUI(QWidget):
                 print("------------------------------------------------------")
                 if done == 1:
                     self.trigger_stop_sysid.emit()
+        
+        # pMMG 데이터 처리
+        if self.pmmg_capture_running and id == 0x361:
+            try:
+                strTemp = b""
+                for x in data:
+                    strTemp += b'%.2X ' % x
+                recv_buffer = bytes.fromhex(strTemp.decode('utf-8'))
+                
+                # pMMG1, pMMG2, pMMG3 데이터 추출 (오프셋은 실제 데이터에 따라 조정 필요)
+                pmmg1 = struct.unpack('<f', recv_buffer[0:4])[0]
+                pmmg2 = struct.unpack('<f', recv_buffer[4:8])[0]
+                pmmg3 = struct.unpack('<f', recv_buffer[8:12])[0]
+                
+                # 데이터 저장
+                self.pmmg_data['time'].append(len(self.pmmg_data['time']))
+                self.pmmg_data['pmmg1'].append(pmmg1)
+                self.pmmg_data['pmmg2'].append(pmmg2)
+                self.pmmg_data['pmmg3'].append(pmmg3)
+                
+                # 그래프 업데이트
+                self.pmmg_plotter.update_data(pmmg1, pmmg2, pmmg3)
+                
+            except (ValueError, struct.error) as e:
+                print(f"Error processing pMMG data: {e}")
 
     def __del__(self):
             if self.m_DLLFound:
