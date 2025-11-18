@@ -9,8 +9,11 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 
 class DataProcessor:
-    def __init__(self, filename):
+    def __init__(self, filename, node_id=0x07):
         self.filename = filename
+        self.node_id = node_id
+        # Convert node_id to data pattern (0x06 -> 0361, 0x07 -> 0371)
+        self.data_pattern = '0361' if node_id == 0x06 else '0371'
         self.data = {'cnt': [], 'ref_torque': [], 'torque': [], 'gait_phase': [], 
                      'enc1': [], 'enc2': [], 'dist': [], 'cur': [], 'FB': [], 'FF': [], 'gait_phase_widm': [], 'gait_period': [],
                      'freq':[],'mot_vel':[], 'force':[], 'done':[],'ref_vel':[],'AC':[]}
@@ -20,7 +23,7 @@ class DataProcessor:
             lines = file.readlines()[34:]  # Skip header lines
             # cnt_pre=0
             for line in lines:
-                if 'Rx' in line and '0371' in line:
+                if 'Rx' in line and self.data_pattern in line:
                     try:
                         # 'Rx' 위치를 찾고 데이터를 추출
                         index = line.index('Rx') + 5
@@ -69,7 +72,7 @@ class DataProcessor:
             lines = file.readlines()[34:]  # Skip header lines
             # cnt_pre=0
             for line in lines:
-                if 'Rx' in line and '0371' in line:
+                if 'Rx' in line and self.data_pattern in line:
                     try:
                         # 'Rx' 위치를 찾고 데이터를 추출
                         index = line.index('Rx') + 5
