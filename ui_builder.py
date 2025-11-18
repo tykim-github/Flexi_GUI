@@ -111,6 +111,10 @@ class UIBuilder:
             'sysid_mag': ('Input Magnitude (A)', 0),
             'sysid_offset': ('Input Offset', 0),
             'sysid_file_name': ('File Save Name (.txt)', "250304_Flexi_Ankle_ID"),
+            'saan_k_torque': ('K_torque:', 0),
+            'saan_max_torque': ('Max Torque:', 0),
+            'saan_power_PF': ('Power PF:', 1),
+            'saan_power_DF': ('Power DF:', 1),
         }
         
         for key, (text, value) in label_config.items():
@@ -254,20 +258,30 @@ class UIBuilder:
         layout_ankle.addWidget(self.labels['refAnkle_width'])
         layout_ankle.addWidget(self.labels['refAnkle_gaitperiod'])
         
+        # SAAN tab
+        layout_saan = QVBoxLayout()
+        layout_saan.addWidget(self.labels['saan_k_torque'])
+        layout_saan.addWidget(self.labels['saan_max_torque'])
+        layout_saan.addWidget(self.labels['saan_power_PF'])
+        layout_saan.addWidget(self.labels['saan_power_DF'])
+        
         # Tabs
         tabs_ref = QTabWidget()
         tab_walking = QWidget()
         tab_sine = QWidget()
         tab_square = QWidget()
         tab_ankle = QWidget()
+        tab_saan = QWidget()
         tab_walking.setLayout(grid_walking)
         tab_sine.setLayout(layout_sine)
         tab_square.setLayout(layout_tanh)
         tab_ankle.setLayout(layout_ankle)
+        tab_saan.setLayout(layout_saan)
         tabs_ref.addTab(tab_walking, "Walking")
         tabs_ref.addTab(tab_sine, "Sine")
         tabs_ref.addTab(tab_square, "Square")
         tabs_ref.addTab(tab_ankle, "Ankle")
+        tabs_ref.addTab(tab_saan, "SAAN")
         
         layout.addWidget(self.other_widgets['param_title'])
         layout.addStretch(1)
@@ -286,6 +300,7 @@ class UIBuilder:
         self.tabs['sine'] = tab_sine
         self.tabs['square'] = tab_square
         self.tabs['ankle'] = tab_ankle
+        self.tabs['saan'] = tab_saan
         
         return layout, tabs_ref
 

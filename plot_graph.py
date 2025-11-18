@@ -14,58 +14,109 @@ class DataProcessor:
         self.node_id = node_id
         # Convert node_id to data pattern (0x06 -> 0361, 0x07 -> 0371)
         self.data_pattern = '0361' if node_id == 0x06 else '0371'
-        self.data = {'cnt': [], 'ref_torque': [], 'torque': [], 'gait_phase': [], 
+        self.data = {'cnt': [], 'ref_force': [], 'torque': [], 'gait_phase': [], 
                      'enc1': [], 'enc2': [], 'dist': [], 'cur': [], 'FB': [], 'FF': [], 'gait_phase_widm': [], 'gait_period': [],
-                     'freq':[],'mot_vel':[], 'force':[], 'done':[],'ref_vel':[],'AC':[]}
+                     'freq':[],'mot_vel':[], 'force':[], 'done':[],'ref_vel':[],'pmmg1':[],'pmmg2':[]}
     
     def load_data(self):
         with open(self.filename, 'r') as file:
             lines = file.readlines()[34:]  # Skip header lines
-            # cnt_pre=0
+            frame_count = 0
+            valid_frames = 0
+            invalid_frames = 0
+            wrong_id_frames = 0
+            
             for line in lines:
-                if 'Rx' in line and self.data_pattern in line:
-                    try:
-                        # 'Rx' 위치를 찾고 데이터를 추출
-                        index = line.index('Rx') + 5
-                        hex_data = line[index:].split()  # Index 이후부터 데이터 추출
-                        
-                        # 한 줄의 데이터를 합쳐서 hex로 변환
-                        hex_str = ''.join(hex_data)
-                        
-                        # hex 데이터를 byte로 변환
-                        recv_buffer = bytes.fromhex(hex_str)
-                        
-                        # 데이터 변환 - 오프셋에 따른 정확한 데이터 추출
-                        cnt = struct.unpack('<i', recv_buffer[3:7])[0]
-                        ref_torque = struct.unpack('<f', recv_buffer[9:13])[0]
-                        force = struct.unpack('<f', recv_buffer[15:19])[0]
-                        enc1 = struct.unpack('<f', recv_buffer[21:25])[0]
-                        cur = struct.unpack('<f', recv_buffer[27:31])[0]
-                        ref_vel = struct.unpack('<f', recv_buffer[33:37])[0]
-                        AC = struct.unpack('<f', recv_buffer[39:43])[0]
-                        FB = struct.unpack('<f', recv_buffer[45:49])[0]
-                        mot_vel = struct.unpack('<f', recv_buffer[51:55])[0]
-                        torque = struct.unpack('<f', recv_buffer[57:61])[0]
-                        # torque = struct.unpack('<f', recv_buffer[63:67])[0]
-
-                        # 데이터 저장
-                        self.data['cnt'].append(cnt)
-                        self.data['ref_torque'].append(ref_torque)
-                        self.data['force'].append(force)
-                        self.data['enc1'].append(enc1)
-                        self.data['cur'].append(cur)
-                        self.data['ref_vel'].append(ref_vel)
-                        self.data['AC'].append(AC)
-                        self.data['FB'].append(FB)
-                        self.data['mot_vel'].append(mot_vel)
-                        self.data['torque'].append(torque)
-                        # self.data['torque'].append(torque)
-                        
-                        
-
-                    except (ValueError, struct.error) as e:
-                        print(f"Skipping line due to unpacking error: {line} - Error: {e}")
+                try:
+                    # TRC 형식: "... CAN_ID Rx/Tx DLC data..."
+                    # "Rx" 또는 "Tx" 위치 찾기
+                    if 'Rx' not in line and 'Tx' not in line:
                         continue
+                    
+                    # Rx/Tx 이전 부분에서 CAN ID 추출
+                    rx_tx_pos = line.find('Rx') if 'Rx' in line else line.find('Tx')
+                    
+                    # Rx/Tx 이전의 공백으로 구분된 토큰들
+                    before_rx = line[:rx_tx_pos].strip().split()
+                    
+                    # 마지막 토큰이 CAN ID (16진수 형식)
+                    if len(before_rx) < 1:
+                        wrong_id_frames += 1
+                        frame_count += 1
+                        continue
+                    
+                    can_id = before_rx[-1]  # 마지막 토큰
+                    
+                    # CAN ID 검증 (0x0317 or 0x0371)
+                    expected_id = '0317' if self.node_id == 0x06 else '0371'
+                    if can_id != expected_id:
+                        wrong_id_frames += 1
+                        frame_count += 1
+                        continue
+                    
+                    # hex 데이터 추출 (Rx/Tx 이후의 모든 hex 값)
+                    rx_tx_marker = 'Rx' if 'Rx' in line else 'Tx'
+                    index = line.index(rx_tx_marker) + len(rx_tx_marker)
+                    hex_data = line[index:].split()  # DLC 포함, 이후부터 모두 추출
+                    
+                    # DLC 제거 (첫 번째 값이 DLC)
+                    if len(hex_data) > 0:
+                        hex_data = hex_data[1:]  # DLC 제거
+                    
+                    hex_str = ''.join(hex_data)
+                    
+                    # hex 데이터를 byte로 변환
+                    recv_buffer = bytes.fromhex(hex_str)
+                    
+                    # 최소 길이 확인 (데이터가 충분해야 함)
+                    if len(recv_buffer) < 61:
+                        invalid_frames += 1
+                        frame_count += 1
+                        continue
+                    
+                    # 데이터 변환 - 오프셋에 따른 정확한 데이터 추출
+                    cnt = struct.unpack('<i', recv_buffer[3:7])[0]
+                    
+                    # cnt 값의 이상 여부 확인
+                    if cnt > 100000 or cnt < 0:
+                        print(f"[SKIP] Frame {frame_count}: Invalid cnt={cnt}")
+                        invalid_frames += 1
+                        frame_count += 1
+                        continue
+                    
+                    ref_force = struct.unpack('<f', recv_buffer[9:13])[0]
+                    force = struct.unpack('<f', recv_buffer[15:19])[0]
+                    enc1 = struct.unpack('<f', recv_buffer[21:25])[0]
+                    cur = struct.unpack('<f', recv_buffer[27:31])[0]
+                    ref_vel = struct.unpack('<f', recv_buffer[33:37])[0]
+                    mot_vel = struct.unpack('<f', recv_buffer[39:43])[0]
+                    torque = struct.unpack('<f', recv_buffer[45:49])[0]
+                    pmmg1 = struct.unpack('<f', recv_buffer[51:55])[0]
+                    pmmg2 = struct.unpack('<f', recv_buffer[57:61])[0]
+
+                    # 데이터 저장
+                    self.data['cnt'].append(cnt)
+                    self.data['ref_force'].append(ref_force)
+                    self.data['force'].append(force)
+                    self.data['enc1'].append(enc1)
+                    self.data['cur'].append(cur)
+                    self.data['ref_vel'].append(ref_vel)
+                    self.data['mot_vel'].append(mot_vel)
+                    self.data['torque'].append(torque)
+                    self.data['pmmg1'].append(pmmg1)
+                    self.data['pmmg2'].append(pmmg2)
+                    
+                    valid_frames += 1
+                    
+                except (ValueError, struct.error, IndexError) as e:
+                    invalid_frames += 1
+                
+                frame_count += 1
+            
+            print(f"\n[SUMMARY] Total frames: {frame_count}")
+            print(f"  Valid (correct ID): {valid_frames}")
+            print(f"  Wrong CAN ID: {wrong_id_frames}")
+            print(f"  Invalid/Unpacking error: {invalid_frames}")
 
     def sysid_load_data(self):
         with open(self.filename, 'r') as file:
@@ -104,9 +155,10 @@ class DataProcessor:
                     except (ValueError, struct.error) as e:
                         print(f"Skipping line due to unpacking error: {line} - Error: {e}")
                         continue
+
 class PlotCanvas(FigureCanvas):
     def __init__(self, data, parent=None):
-        fig, self.ax = plt.subplots(5, 1, figsize=(8, 12))
+        fig, self.ax = plt.subplots(6, 1, figsize=(8, 14))
         super(PlotCanvas, self).__init__(fig)
         self.setParent(parent)
         self.data = data    
@@ -121,27 +173,37 @@ class PlotCanvas(FigureCanvas):
     def plot_data(self):
         t_data = self.data
         
-        self.ax[0].plot(t_data['cur'], label='current')
+        # x축을 cnt로 설정 (모든 플롯에 일관적 적용)
+        x_axis = t_data['cnt'] if len(t_data['cnt']) > 0 else range(len(t_data['cur']))
+        
+        self.ax[0].plot(x_axis, t_data['cur'], label='current')
+        self.ax[0].set_ylabel('Current (A)')
         self.ax[0].legend()
-        print('cur plotted')
+        print(f'cur plotted: {len(t_data["cur"])} points')
 
-        self.ax[1].plot(t_data['mot_vel'],label='mot_vel')
+        self.ax[1].plot(x_axis, t_data['mot_vel'], label='mot_vel')
+        self.ax[1].set_ylabel('Velocity (rad/s)')
         self.ax[1].legend()
 
-        self.ax[2].plot(t_data['force'], label='load cell')
-        self.ax[2].plot(t_data['ref_torque'], label='ref')
+        self.ax[2].plot(x_axis, t_data['force'], label='measured force')
+        self.ax[2].plot(x_axis, t_data['ref_force'], label='ref force')
+        self.ax[2].set_ylabel('Force (N)')
         self.ax[2].legend()
 
-        self.ax[3].plot(t_data['torque'], label='freq')
+        self.ax[3].plot(x_axis, t_data['torque'], label='measured torque')
+        self.ax[3].set_ylabel('Torque (Nm)')
         self.ax[3].legend()
 
-        self.ax[4].plot(t_data['enc1'], label='impedance_ref')
+        self.ax[4].plot(x_axis, t_data['enc1'], label='ankle angle')
+        self.ax[4].set_ylabel('Angle (deg)')
         self.ax[4].legend()
 
-        # self.ax[2].plot(t_data['cur'], label='cur')
-        # self.ax[2].plot(t_data['dist'], label='dist')
-        # self.ax[2].plot(t_data['FB'], label='FB')
-        # self.ax[2].legend()
+        # pMMG 데이터 plot
+        self.ax[5].plot(x_axis, t_data['pmmg1'], label='pMMG1')
+        self.ax[5].plot(x_axis, t_data['pmmg2'], label='pMMG2')
+        self.ax[5].set_xlabel('Loop Count (cnt)')
+        self.ax[5].set_ylabel('Pressure (kPa)')
+        self.ax[5].legend()
 
         self.draw()
 

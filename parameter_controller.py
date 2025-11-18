@@ -186,6 +186,23 @@ class ParameterController:
         msg = flatten_list(msg)
         self.pcan_comm.send_message(msg, SDO, self.node_id)
 
+    def set_saan_parameters(self, k_torque, max_torque, power_PF, power_DF):
+        """
+        SAAN 파라미터 설정
+        
+        Parameters:
+            k_torque: K_torque (비례상수)
+            max_torque: Max Torque (최대 토크)
+            power_PF: Power PF (PF 지수상수)
+            power_DF: Power DF (DF 지수상수)
+        """
+        msg = [1, pack_sdo_unit(TASK_ID_MIDLEVEL, SDO_ID_MIDLEVEL_PROPORTIONALCTRL_INFO,
+                               SDO_REQU, 4,
+                               [float_to_byte_list(k_torque), float_to_byte_list(max_torque),
+                                float_to_byte_list(power_PF), float_to_byte_list(power_DF)])]
+        msg = flatten_list(msg)
+        self.pcan_comm.send_message(msg, SDO, self.node_id)
+
     def shift_parameters_right(self, t1=None, t2=None, t3=None, t4=None, t5=None, t6=None):
         """
         파라미터를 오른쪽으로 시프트 (값 증가)

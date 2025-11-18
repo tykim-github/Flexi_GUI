@@ -90,7 +90,7 @@ class DataManager:
 
     def save_to_txt(self, filename=None):
         """
-        데이터를 텍스트 파일로 저장 (일반 데이터)
+        데이터를 텍스트 파일로 저장 (일반 데이터 + pMMG)
         
         Parameters:
             filename: 저장할 파일명 (None이면 self.output_filename 사용)
@@ -106,13 +106,22 @@ class DataManager:
             return False
 
         try:
-            data_array = np.column_stack([
-                self.data['cnt'], self.data['ref_torque'], self.data['force'],
-                self.data['enc1'], self.data['cur'], self.data['ref_vel'],
-                self.data['AC'], self.data['FB'], self.data['mot_vel'],
-                self.data['torque']
-            ])
-            header = "cnt ref_torque force enc1 cur ref_vel AC FB mot_vel torque"
+            # pMMG 데이터가 있으면 포함, 없으면 제외
+            if len(self.data.get('pmmg1', [])) > 0:
+                data_array = np.column_stack([
+                    self.data['cnt'], self.data['ref_torque'], self.data['force'],
+                    self.data['enc1'], self.data['cur'], self.data['ref_vel'],
+                    self.data['mot_vel'], self.data['torque'], self.data['pmmg1'], self.data['pmmg2']
+                ])
+                header = "cnt ref_torque force enc1 cur ref_vel mot_vel torque pmmg1 pmmg2"
+            else:
+                data_array = np.column_stack([
+                    self.data['cnt'], self.data['ref_torque'], self.data['force'],
+                    self.data['enc1'], self.data['cur'], self.data['ref_vel'],
+                    self.data['mot_vel'], self.data['torque']
+                ])
+                header = "cnt ref_torque force enc1 cur ref_vel mot_vel torque"
+            
             np.savetxt(save_filename, data_array, header=header, fmt='%.6f', delimiter='\t')
             print(f"Data saved to {save_filename}")
             return True

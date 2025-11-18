@@ -306,19 +306,43 @@ class RobotGUI(QMainWindow):
             self.show_error("Error", f"Set control failed: {str(e)}")
     
     def set_param(self):
-        """Set parameters based on current tab"""
+        """Set parameters based on current parameter tab"""
         try:
             if not self.pcan_comm.obj_pcan_basic:
                 self.show_error("Error", "PCAN not initialized. Please connect first.")
                 return
             
             params = self._get_input_params()
-            tab_index = self.tabs.currentIndex()
+            # Get current tab index from parameter tabs (not main tabs)
+            param_tab_index = self.ui_builder.tabs['ref'].currentIndex()
             
-            if tab_index == 0:  # Walking
+            if param_tab_index == 0:  # Walking
                 self.param_ctrl.set_walking_parameters(**params)
-            elif tab_index == 1:  # SysID
-                self.sysid_ctrl.apply_settings(**params)
+            elif param_tab_index == 1:  # Sine
+                self.param_ctrl.set_sine_parameters(
+                    amp=params.get('refsine_amp', 0),
+                    freq=params.get('refsine_freq', 0)
+                )
+            elif param_tab_index == 2:  # Square (Tanh)
+                self.param_ctrl.set_square_parameters(
+                    amp=params.get('reftanh_amp', 0),
+                    a=params.get('reftanh_a', 0),
+                    td=params.get('reftanh_td', 0)
+                )
+            elif param_tab_index == 3:  # Ankle (Periodic)
+                self.param_ctrl.set_periodic_ankle_parameters(
+                    plantar_amp=params.get('refAnkle_amp', 0),
+                    peak=params.get('refAnkle_peak', 0),
+                    ratio=params.get('refAnkle_ratio', 0),
+                    width=params.get('refAnkle_width', 0)
+                )
+            elif param_tab_index == 4:  # SAAN
+                self.param_ctrl.set_saan_parameters(
+                    k_torque=params.get('saan_k_torque', 0),
+                    max_torque=params.get('saan_max_torque', 0),
+                    power_PF=params.get('saan_power_PF', 1),
+                    power_DF=params.get('saan_power_DF', 1)
+                )
             
             self.show_info("Success", "Parameters applied")
         except Exception as e:

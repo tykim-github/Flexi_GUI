@@ -42,11 +42,21 @@ class RobotController:
         if self.gui_ref is None:
             return
         
-        # 탭 선택에 따른 루틴
-        if hasattr(self.gui_ref, 'tabs'):
-            current_tab = self.gui_ref.tabs.currentIndex()
-            if current_tab == 0:  # Walking tab
-                self.routine_list.append(ROUTINE_ID_MIDLEVEL_ANKLE_REF)
+        # 파라미터 탭 선택에 따른 루틴
+        if hasattr(self.gui_ref, 'ui_builder') and hasattr(self.gui_ref.ui_builder, 'tabs'):
+            param_tab = self.gui_ref.ui_builder.tabs.get('ref')
+            if param_tab is not None:
+                current_param_tab = param_tab.currentIndex()
+                if current_param_tab == 0:  # Walking tab
+                    self.routine_list.append(ROUTINE_ID_MIDLEVEL_ANKLE_REF)
+                elif current_param_tab == 1:  # Sine tab
+                    self.routine_list.append(ROUTINE_ID_MIDLEVEL_POSITION_SINE_REF)
+                elif current_param_tab == 2:  # Square tab
+                    self.routine_list.append(ROUTINE_ID_MIDLEVEL_POSITION_TANH_REF)
+                elif current_param_tab == 3:  # Ankle tab
+                    self.routine_list.append(ROUTINE_ID_MIDLEVEL_ANKLE_REF_PERIODIC)
+                elif current_param_tab == 4:  # SAAN tab
+                    self.routine_list.append(ROUTINE_ID_MIDLEVEL_PROPORTIONAL_ASSIST)
         
         # 체크박스 기반 루틴
         if hasattr(self.gui_ref, 'checkboxes_dict'):
@@ -78,6 +88,14 @@ class RobotController:
             get_routine_list_func: (Optional) 루틴 리스트를 얻는 함수
             get_data_func: (Optional) 데이터 얻는 함수
         """
+        # pMMG 선택: LEFT(0x06)면 pMMG1,2 / RIGHT(0x07)면 pMMG3,4
+        if self.node_id == 0x06:
+            pmmg_id1 = PDO_ID_MIDLEVEL_PMMG1  # 0x22
+            pmmg_id2 = PDO_ID_MIDLEVEL_PMMG2  # 0x23
+        else:
+            pmmg_id1 = PDO_ID_MIDLEVEL_PMMG3  # 0x24
+            pmmg_id2 = PDO_ID_MIDLEVEL_PMMG4  # 0x0B
+        
         msg = [4, pack_sdo_unit(TASK_ID_MSG, SDO_ID_MSG_SET_STATE, SDO_REQU, 1, STATE_STANDBY),
                TASK_ID_MSG, SDO_ID_MSG_PDO_LIST, SDO_REQU, 10,
                TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_LOOP_CNT,
@@ -86,10 +104,10 @@ class RobotController:
                TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_ABSENCODER1_POSITION, # ankle angle
                TASK_ID_LOWLEVEL, PDO_ID_LOWLEVEL_CURRENT_OUTPUT,
                TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_REF_VELOCITY, 
-               TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_AC_CTRL_INPUT, # not required
-               TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_POS_PID_CTRL_INPUT,  # not required
                TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_VELOCITY_ESTIMATED,  # not required
                TASK_ID_MIDLEVEL, PDO_ID_MIDLEVEL_LOADCELL_TORQUE,
+               TASK_ID_MIDLEVEL, pmmg_id1,  # pMMG 1 (LEFT: pMMG1, RIGHT: pMMG3)
+               TASK_ID_MIDLEVEL, pmmg_id2,  # pMMG 2 (LEFT: pMMG2, RIGHT: pMMG4)
                pack_sdo_unit(TASK_ID_MSG, SDO_ID_MSG_GUI_COMM_ONOFF, SDO_REQU, 1, 0),
                pack_sdo_unit(TASK_ID_MSG, SDO_ID_MSG_GUI_COMM_COMMAND, SDO_REQU, 1, MECH_SYS_ID_SBS_RAW_DATA)]
         msg = flatten_list(msg)
