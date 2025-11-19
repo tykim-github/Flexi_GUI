@@ -47,8 +47,8 @@ class DataProcessor:
                     
                     can_id = before_rx[-1]  # 마지막 토큰
                     
-                    # CAN ID 검증 (0x0317 or 0x0371)
-                    expected_id = '0317' if self.node_id == 0x06 else '0371'
+                    # CAN ID 검증 (0x0361 or 0x0371)
+                    expected_id = '0361' if self.node_id == 0x06 else '0371'
                     if can_id != expected_id:
                         wrong_id_frames += 1
                         frame_count += 1
