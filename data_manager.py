@@ -231,7 +231,11 @@ class DataManager:
             available_keys = []
             data_columns = []
             
-            column_order = ['cnt', 'ref_torque', 'force', 'enc1', 'cur', 'ref_vel', 'AC', 'FB', 'mot_vel', 'torque']
+            # 모든 가능한 열 순서 (플롯에서 표시되는 모든 데이터 포함)
+            column_order = ['cnt', 'ref_force', 'ref_torque', 'force', 'torque', 'enc1', 'enc2', 
+                           'cur', 'ref_vel', 'mot_vel', 'AC', 'FB', 'FF', 'gait_phase', 
+                           'gait_phase_widm', 'gait_period', 'dist', 'freq', 'pmmg1', 'pmmg2', 'gamma', 'done']
+            
             for key in column_order:
                 if key in data and len(data[key]) > 0:
                     available_keys.append(key)
@@ -241,10 +245,22 @@ class DataManager:
                 print("No valid data columns to save.")
                 return None
             
-            data_array = np.column_stack(data_columns)
+            # 모든 열의 길이를 같게 맞추기 (최대 길이로)
+            max_len = max(len(col) for col in data_columns)
+            aligned_columns = []
+            for col in data_columns:
+                if len(col) < max_len:
+                    # 부족한 부분은 0으로 채우기
+                    aligned_col = list(col) + [0.0] * (max_len - len(col))
+                else:
+                    aligned_col = list(col)
+                aligned_columns.append(aligned_col)
+            
+            data_array = np.column_stack(aligned_columns)
             header = " ".join(available_keys)
             np.savetxt(save_filename, data_array, header=header, fmt='%.6f', delimiter='\t')
             print(f"Data saved to {save_filename}")
+            print(f"Total columns: {len(available_keys)}, Total rows: {max_len}")
             return save_filename
         except Exception as e:
             print(f"Error saving data: {e}")

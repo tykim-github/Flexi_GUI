@@ -186,20 +186,32 @@ class ParameterController:
         msg = flatten_list(msg)
         self.pcan_comm.send_message(msg, SDO, self.node_id)
 
-    def set_saan_parameters(self, k_torque, max_torque, power_PF, power_DF):
+    def set_saan_parameters(self, k_PF, k_DF, power_PF, power_DF, offset_PF, offset_DF, torque_limit, 
+                            k_stiff, d_stiff, gamma_start_threshold, gamma_stop_threshold):
         """
-        SAAN 파라미터 설정
+        SAAN 파라미터 설정 (11개 파라미터)
         
         Parameters:
-            k_torque: K_torque (비례상수)
-            max_torque: Max Torque (최대 토크)
+            k_PF: K_PF (PF 비례상수)
+            k_DF: K_DF (DF 비례상수)
             power_PF: Power PF (PF 지수상수)
             power_DF: Power DF (DF 지수상수)
+            offset_PF: Offset PF (PF 오프셋)
+            offset_DF: Offset DF (DF 오프셋)
+            torque_limit: Torque Limit (토크 제한)
+            k_stiff: K_stiff (경직성 이득)
+            d_stiff: D_stiff (감쇠 이득)
+            gamma_start_threshold: Gamma start threshold (CCI 진입)
+            gamma_stop_threshold: Gamma stop threshold (CCI 해제)
         """
         msg = [1, pack_sdo_unit(TASK_ID_MIDLEVEL, SDO_ID_MIDLEVEL_PROPORTIONALCTRL_INFO,
-                               SDO_REQU, 4,
-                               [float_to_byte_list(k_torque), float_to_byte_list(max_torque),
-                                float_to_byte_list(power_PF), float_to_byte_list(power_DF)])]
+                               SDO_REQU, 11,
+                               [float_to_byte_list(k_PF), float_to_byte_list(k_DF),
+                                float_to_byte_list(power_PF), float_to_byte_list(power_DF),
+                                float_to_byte_list(offset_PF), float_to_byte_list(offset_DF),
+                                float_to_byte_list(torque_limit), float_to_byte_list(k_stiff),
+                                float_to_byte_list(d_stiff), float_to_byte_list(gamma_start_threshold),
+                                float_to_byte_list(gamma_stop_threshold)])]
         msg = flatten_list(msg)
         self.pcan_comm.send_message(msg, SDO, self.node_id)
 
@@ -268,3 +280,45 @@ class ParameterController:
             return t1 - 1, t2 - 1, t3 - 1, t4 - 1, t5 - 1, t6 - 1
         
         return (t1, t2, t3, t4, t5, t6) if all([t1, t2, t3, t4, t5, t6]) else None
+
+    def send_calibration_params(self, params):
+        """
+        16개의 calibration 파라미터를 2번에 나눠서 전송
+        
+        Parameters:
+            params: [a_rest_DF, b_rest_DF, c_rest_DF, d_rest_DF,
+                     a_cont_DF, b_cont_DF, c_cont_DF, d_cont_DF,
+                     a_rest_PF, b_rest_PF, c_rest_PF, d_rest_PF,
+                     a_cont_PF, b_cont_PF, c_cont_PF, d_cont_PF]
+        """
+        if len(params) != 16:
+            print(f"Error: Expected 16 parameters, got {len(params)}")
+            return False
+        
+        try:
+            # Part 1: 첫 8개 (a_rest_DF ~ d_cont_DF)
+            params_part1 = params[0:8]
+            byte_values_part1 = [float_to_byte_list(float(v)) for v in params_part1]
+            
+            msg1 = [1, pack_sdo_unit(TASK_ID_MIDLEVEL, SDO_ID_MIDLEVEL_CALIBRATION_PARAMS_PART1,
+                                     SDO_REQU, 8, byte_values_part1)]
+            self._send_message(msg1)
+            print(f"Part 1 sent: {params_part1}")
+            
+            # 0.1초 대기
+            import time
+            time.sleep(0.1)
+            
+            # Part 2: 나머지 8개 (a_rest_PF ~ d_cont_PF)
+            params_part2 = params[8:16]
+            byte_values_part2 = [float_to_byte_list(float(v)) for v in params_part2]
+            
+            msg2 = [1, pack_sdo_unit(TASK_ID_MIDLEVEL, SDO_ID_MIDLEVEL_CALIBRATION_PARAMS_PART2,
+                                     SDO_REQU, 8, byte_values_part2)]
+            self._send_message(msg2)
+            print(f"Part 2 sent: {params_part2}")
+            
+            return True
+        except Exception as e:
+            print(f"Error sending calibration params: {str(e)}")
+            return False

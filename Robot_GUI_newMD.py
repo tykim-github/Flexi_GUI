@@ -8,8 +8,9 @@ Orchestrates UI, data management, parameter control, and robot communication
 import sys
 import os
 import glob
+import threading
 from PyQt5.QtWidgets import QApplication, QMainWindow, QMessageBox, QFileDialog
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject
 
 # Import custom modules
 from ui_builder import UIBuilder
@@ -19,6 +20,12 @@ from sysid_controller import SystemIDController
 from data_manager import DataManager
 from parameter_controller import ParameterController
 from plot_graph import DataProcessor, DataVisualizer
+from message_handler import pack_sdo_unit, flatten_list
+
+
+class DataSignalEmitter(QObject):
+    """Signal emitter for thread-safe data updates"""
+    data_ready = pyqtSignal(float, float, float, float, float)  # cnt, pmmg1, pmmg2, ankle_angle, gamma
 
 
 class RobotGUI(QMainWindow):
@@ -39,6 +46,12 @@ class RobotGUI(QMainWindow):
         self.data_mgr = DataManager(self.pcan_comm)
         self.param_ctrl = ParameterController(self.pcan_comm, node_id=self.current_node_id)
         
+        # Real-time pMMG monitoring
+        self.pmmg_monitor = None
+        self.data_emitter = DataSignalEmitter()
+        self.pmmg_receive_thread = None
+        self.pmmg_monitoring_active = False
+        
         # Initialize UI builder and build all components
         self.ui_builder = UIBuilder()
         self.components = self.ui_builder.build_main_window(self)
@@ -55,6 +68,19 @@ class RobotGUI(QMainWindow):
         self.checkboxes_dict = self.components['checkboxes']
         self.other_widgets_dict = self.components.get('other_widgets', {})
         self.tabs = self.components['tabs']
+        
+        # Get reference to pMMG monitor (tab 3)
+        if self.tabs and self.tabs.count() > 2:
+            self.pmmg_monitor = self.tabs.widget(2)
+            # Connect signal to monitor
+            self.data_emitter.data_ready.connect(self._on_pmmg_data_received)
+            # Connect monitor button signals
+            if hasattr(self.pmmg_monitor, 'start_requested'):
+                self.pmmg_monitor.start_requested.connect(self.start_pmmg_monitor)
+            if hasattr(self.pmmg_monitor, 'stop_requested'):
+                self.pmmg_monitor.stop_requested.connect(self.stop_pmmg_monitor)
+            if hasattr(self.pmmg_monitor, 'send_calib_requested'):
+                self.pmmg_monitor.send_calib_requested.connect(self.send_calibration_params)
         
         # Data for current session
         self.current_data = {}
@@ -123,6 +149,12 @@ class RobotGUI(QMainWindow):
                 self.buttons_dict['connect'].clicked.connect(self.connect_pcan)
             if 'inittorque' in self.buttons_dict:
                 self.buttons_dict['inittorque'].clicked.connect(self.init_torque)
+            
+            # pMMG monitoring
+            if 'pmmg_start' in self.buttons_dict:
+                self.buttons_dict['pmmg_start'].clicked.connect(self.start_pmmg_monitor)
+            if 'pmmg_stop' in self.buttons_dict:
+                self.buttons_dict['pmmg_stop'].clicked.connect(self.stop_pmmg_monitor)
                 
         except Exception as e:
             print(f"Signal connection error: {e}")
@@ -338,10 +370,17 @@ class RobotGUI(QMainWindow):
                 )
             elif param_tab_index == 4:  # SAAN
                 self.param_ctrl.set_saan_parameters(
-                    k_torque=params.get('saan_k_torque', 0),
-                    max_torque=params.get('saan_max_torque', 0),
+                    k_PF=params.get('saan_k_PF', 0),
+                    k_DF=params.get('saan_k_DF', 0),
                     power_PF=params.get('saan_power_PF', 1),
-                    power_DF=params.get('saan_power_DF', 1)
+                    power_DF=params.get('saan_power_DF', 1),
+                    offset_PF=params.get('saan_offset_PF', 102),
+                    offset_DF=params.get('saan_offset_DF', 102),
+                    torque_limit=params.get('saan_torque_limit', 3),
+                    k_stiff=params.get('saan_k_stiff', 0),
+                    d_stiff=params.get('saan_d_stiff', 0),
+                    gamma_start_threshold=params.get('saan_gamma_start', 0.5),
+                    gamma_stop_threshold=params.get('saan_gamma_stop', 0.35)
                 )
             
             self.show_info("Success", "Parameters applied")
@@ -512,9 +551,95 @@ class RobotGUI(QMainWindow):
         """Show warning message box"""
         QMessageBox.warning(self, title, message)
     
+    # ===================== Real-time pMMG Monitoring =====================
+    
+    def _on_pmmg_data_received(self, cnt, pmmg1, pmmg2, ankle_angle, gamma):
+        """Slot for receiving pMMG data"""
+        if self.pmmg_monitor and self.robot_ctrl.get_pmmg_monitoring_status():
+            self.pmmg_monitor.add_data(cnt, pmmg1, pmmg2, ankle_angle, gamma)
+    
+    def start_pmmg_monitor(self):
+        """pMMG 모니터링 시작 (controller 사용)"""
+        try:
+            if not self.pcan_comm.obj_pcan_basic:
+                self.show_error("Error", "PCAN not initialized. Please connect first.")
+                return
+            
+            if self.pmmg_monitor is None:
+                self.show_error("Error", "pMMG monitor not available")
+                return
+            
+            # controller의 start_pmmg_monitor 호출
+            if self.robot_ctrl.start_pmmg_monitor():
+                # GUI 플래그 설정
+                self.pmmg_monitoring_active = True
+                
+                # GUI 모니터링 시작
+                self.pmmg_monitor.start_monitoring()
+                
+                # Controller의 수신 루프 시작 (data_emitter 전달)
+                self.robot_ctrl.start_pmmg_receive_loop(data_emitter=self.data_emitter)
+                
+                self.show_info("Success", "pMMG monitoring started")
+            else:
+                self.show_error("Error", "Failed to start pMMG monitoring")
+        except Exception as e:
+            self.show_error("Error", f"Start pMMG monitor failed: {str(e)}")
+    
+    def stop_pmmg_monitor(self):
+        """pMMG 모니터링 중지 (controller 사용)"""
+        try:
+            # GUI 플래그 해제
+            self.pmmg_monitoring_active = False
+            
+            # controller의 stop_pmmg_monitor 호출
+            if self.robot_ctrl.stop_pmmg_monitor():
+                if self.pmmg_monitor:
+                    self.pmmg_monitor.stop_monitoring()
+                
+                self.show_info("Info", "pMMG monitoring stopped")
+            else:
+                self.show_error("Error", "Failed to stop pMMG monitoring")
+        except Exception as e:
+            self.show_error("Error", f"Stop pMMG monitor failed: {str(e)}")
+    
+    def send_calibration_params(self):
+        """Calibration parameters를 robot으로 전송"""
+        try:
+            if not self.pcan_comm.obj_pcan_basic:
+                self.show_error("Error", "PCAN not initialized. Please connect first.")
+                return
+            
+            if self.pmmg_monitor is None:
+                self.show_error("Error", "pMMG monitor not available")
+                return
+            
+            # pMMG monitor에서 calibration 파라미터 읽기
+            params = self.pmmg_monitor.get_calibration_params()
+            
+            if params is None:
+                self.show_error("Error", "Invalid parameter values")
+                return
+            
+            if len(params) != 16:
+                self.show_error("Error", f"Expected 16 parameters, got {len(params)}")
+                return
+            
+            # Parameter controller를 통해 전송
+            if self.param_ctrl.send_calibration_params(params):
+                self.show_info("Success", "Calibration parameters sent to robot successfully")
+            else:
+                self.show_error("Error", "Failed to send calibration parameters")
+        except Exception as e:
+            self.show_error("Error", f"Send calibration failed: {str(e)}")
+    
     def closeEvent(self, event):
         """Handle window close event"""
         try:
+            # Stop pMMG monitoring if active
+            if self.pmmg_monitoring_active:
+                self.stop_pmmg_monitor()
+            
             self.update_timer.stop()
             if self.pcan_comm:
                 self.pcan_comm.close()

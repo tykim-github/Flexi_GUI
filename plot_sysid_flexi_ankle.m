@@ -1,12 +1,19 @@
 clear; clc; close all;
 
+set(groot,'defaulttextinterpreter','latex');  
+set(groot, 'defaultAxesTickLabelInterpreter','latex');  
+set(groot, 'defaultLegendInterpreter','latex');
+
+
+
 % common_name='251108_Flexi_Ankle_R_ID_';
-common_name='251108_Flexi_Ankle_L_ID_';
+common_name='251115_Flexi_Ankle_R_ID_';
 
 scriptDir = fileparts(mfilename('fullpath'));
 fileList = dir(fullfile(scriptDir, [common_name '*']));
 fileNames = string({fileList.name});
 fileNames = extractBefore(fileNames, ".txt");
+
 
 
 %%
@@ -33,10 +40,10 @@ Kt=52.5*1.0*10^-3;
 ps=6*10^-3; 
 Jm=0.003; 
 Bm=0.2; 
-kf=0.275; %Nm/rad by experiment
+kf=1.157*1.1; %Nm/rad by experiment
 eta=0.9;
 
-Kp=0.9; Ki=0.0001; Kd=0;
+Kp=0.9; Ki=0; Kd=0;
 % Kp=30; Ki=0.2; Kd=0;
 C=Kp+Kd*s+Ki/s;
 
@@ -81,10 +88,10 @@ for i=1:length(fileNames)
 %     E=abs((mag_nom-mag_lin)./mag_nom);
     figure(1);
     subplot(2,1,1);
-    semilogx(freq, mag, '.-','lineWidth',1.2,'Color',colors(i,:)); hold on;
+    semilogx(freq, mag, '.-','lineWidth',1.2,'Color',colors(i,:)); hold on; grid on;
     xlim([0.1 20]); xlabel('Frequency(Hz)'); ylabel('Magnitude(dB)');
     subplot(2,1,2);
-    semilogx(freq, phase, '.-','lineWidth',1.2,'Color',colors(i,:)); hold on;
+    semilogx(freq, phase, '.-','lineWidth',1.2,'Color',colors(i,:)); hold on; grid on;
     xlim([0.1 20]); xlabel('Frequency(Hz)'); ylabel('Phase(deg)');
 %     semilogx(wout/2/pi, phase_nominal);
 %     figure(2);
@@ -101,9 +108,9 @@ semilogx(wout2/2/pi, phase_nominal2,'k','LineWidth',1.0);
 
 % xlim([0.2 20]); ylim([-60 -5]); xlabel('Frequency(Hz)'); ylabel('Magnitude(dB)');
 % legend('G.C 10%','G.C 40%','G.C 70%','Nominal model')
-legend('1 rad/s','','2 rad/s','','3 rad/s')
+% legend('1 rad/s','','2 rad/s','','3 rad/s')
 set(fig1, 'OuterPosition', [3, 270, 800, 500]);
-set(gca,"FontName",'Times New Roman', 'FontSize',12)
+% set(gca,"FontName",'Times New Roman', 'FontSize',12)
 % % Qfilter
 % z=tf('z',0.001);
 % Qfilter=0.0037086/(z-0.9391)^2;
@@ -125,7 +132,9 @@ ds/ns(3)
 Psysd = c2d(Psys,0.001,'zoh');
 [n,d] = tfdata(Psysd,'v');
 Psysd2 = tf(n(2)+n(3),d,0.001);
-dob(Psysd2, 20, [2 0]);
+
+figure();
+dob(Psysd2, 17, [2 0]);
 bode(Psysd2); hold on; bode(Psysd)
 %%
 Pptc=ptc(Psysd2)

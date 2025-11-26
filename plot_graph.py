@@ -16,7 +16,7 @@ class DataProcessor:
         self.data_pattern = '0361' if node_id == 0x06 else '0371'
         self.data = {'cnt': [], 'ref_force': [], 'torque': [], 'gait_phase': [], 
                      'enc1': [], 'enc2': [], 'dist': [], 'cur': [], 'FB': [], 'FF': [], 'gait_phase_widm': [], 'gait_period': [],
-                     'freq':[],'mot_vel':[], 'force':[], 'done':[],'ref_vel':[],'pmmg1':[],'pmmg2':[]}
+                     'freq':[],'mot_vel':[], 'force':[], 'done':[],'ref_vel':[],'pmmg1':[],'pmmg2':[],'gamma':[]}
     
     def load_data(self):
         with open(self.filename, 'r') as file:
@@ -89,10 +89,15 @@ class DataProcessor:
                     enc1 = struct.unpack('<f', recv_buffer[21:25])[0]
                     cur = struct.unpack('<f', recv_buffer[27:31])[0]
                     ref_vel = struct.unpack('<f', recv_buffer[33:37])[0]
-                    mot_vel = struct.unpack('<f', recv_buffer[39:43])[0]
-                    torque = struct.unpack('<f', recv_buffer[45:49])[0]
-                    pmmg1 = struct.unpack('<f', recv_buffer[51:55])[0]
-                    pmmg2 = struct.unpack('<f', recv_buffer[57:61])[0]
+                    torque = struct.unpack('<f', recv_buffer[39:43])[0]
+                    pmmg1 = struct.unpack('<f', recv_buffer[45:49])[0]
+                    pmmg2 = struct.unpack('<f', recv_buffer[51:55])[0]
+                    gamma = struct.unpack('<f', recv_buffer[57:61])[0]  # 실제로는 gamma
+                    
+                    # mot_vel 읽기 (65바이트 이상일 때만)
+                    mot_vel = 0.0
+                    if len(recv_buffer) >= 65:
+                        mot_vel = struct.unpack('<f', recv_buffer[61:65])[0]  # 실제로는 mot_vel
 
                     # 데이터 저장
                     self.data['cnt'].append(cnt)
@@ -105,6 +110,7 @@ class DataProcessor:
                     self.data['torque'].append(torque)
                     self.data['pmmg1'].append(pmmg1)
                     self.data['pmmg2'].append(pmmg2)
+                    self.data['gamma'].append(gamma)
                     
                     valid_frames += 1
                     
@@ -158,7 +164,7 @@ class DataProcessor:
 
 class PlotCanvas(FigureCanvas):
     def __init__(self, data, parent=None):
-        fig, self.ax = plt.subplots(6, 1, figsize=(8, 14))
+        fig, self.ax = plt.subplots(7, 1, figsize=(8, 16))
         super(PlotCanvas, self).__init__(fig)
         self.setParent(parent)
         self.data = data    
@@ -201,9 +207,13 @@ class PlotCanvas(FigureCanvas):
         # pMMG 데이터 plot
         self.ax[5].plot(x_axis, t_data['pmmg1'], label='pMMG1')
         self.ax[5].plot(x_axis, t_data['pmmg2'], label='pMMG2')
-        self.ax[5].set_xlabel('Loop Count (cnt)')
         self.ax[5].set_ylabel('Pressure (kPa)')
         self.ax[5].legend()
+
+        self.ax[6].plot(x_axis, t_data['gamma'], label='gamma (CCI)', color='purple')
+        self.ax[6].set_xlabel('Loop Count (cnt)')
+        self.ax[6].set_ylabel('Gamma (CCI)')
+        self.ax[6].legend()
 
         self.draw()
 

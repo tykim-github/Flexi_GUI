@@ -29,8 +29,8 @@ class UIBuilder:
             'inittorque': ('Initiate Torque', 'black', True, None),
             'roboton': ('Robot On', 'blue', True, (150, 50)),
             'assiston': ('Assist On', 'blue', True, (150, 50)),
-            'robotoff': ('Robot Off', 'red', True, (150, 50)),
-            'assistoff': ('Assist Off', 'red', True, (150, 50)),
+            'robotoff': ('Robot Off', 'darkred', True, (150, 50)),
+            'assistoff': ('Assist Off', 'darkred', True, (150, 50)),
             'capture': ('CAPTURE', 'black', False, (150, 50)),
             'stop': ('STOP', 'red', False, (150, 50)),
             'plot': ('PLOT', 'blue', False, (150, 50)),
@@ -44,6 +44,8 @@ class UIBuilder:
             'sysid_stop': ('Stop ID', 'red', False, (150, 50)),
             'sysid_apply': ('Apply', 'black', False, (150, 50)),
             'sysid_save': ('SAVE', 'blue', False, (150, 50)),
+            'pmmg_start': ('Start pMMG Monitor', 'green', False, (150, 50)),
+            'pmmg_stop': ('Stop pMMG Monitor', 'red', False, (150, 50)),
         }
         
         for key, (text, color, expanding, size) in button_config.items():
@@ -90,9 +92,9 @@ class UIBuilder:
             'imp_kd': ('Kd:', 0.83),
             'imp_lambda': ('lambda:', 0),
             'imp_epsilon': ('epsilon:', 0),
-            'Max_error': ('Maximum Error(N):', 30),
-            'Max_ank_ang': ('Max(D)(deg):', 20),
-            'Min_ank_ang': ('ROM Min(P) (deg):', -35),
+            'Max_error': ('Maximum Error(N):', 200),
+            'Max_ank_ang': ('Max(PF)(deg):', 40),
+            'Min_ank_ang': ('Min(DF) (deg):', -20),
             'reftanh_amp': ('Amplitude (Nm):', 5),
             'reftanh_a': ('a:', 10),
             'reftanh_td': ('duration(s):', 1),
@@ -111,10 +113,17 @@ class UIBuilder:
             'sysid_mag': ('Input Magnitude (A)', 0),
             'sysid_offset': ('Input Offset', 0),
             'sysid_file_name': ('File Save Name (.txt)', "250304_Flexi_Ankle_ID"),
-            'saan_k_torque': ('K_torque:', 0),
-            'saan_max_torque': ('Max Torque:', 0),
+            'saan_k_PF': ('K_PF:', 0),
+            'saan_k_DF': ('K_DF:', 0),
             'saan_power_PF': ('Power PF:', 1),
             'saan_power_DF': ('Power DF:', 1),
+            'saan_offset_PF': ('Offset PF:', 102),
+            'saan_offset_DF': ('Offset DF:', 102),
+            'saan_torque_limit': ('Torque Limit:', 3),
+            'saan_k_stiff': ('K_stiff:', 0.1),
+            'saan_d_stiff': ('D_stiff:', 0.015),
+            'saan_gamma_start': ('Gamma Start:', 0.5),
+            'saan_gamma_stop': ('Gamma Stop:', 0.45),
         }
         
         for key, (text, value) in label_config.items():
@@ -259,11 +268,20 @@ class UIBuilder:
         layout_ankle.addWidget(self.labels['refAnkle_gaitperiod'])
         
         # SAAN tab
-        layout_saan = QVBoxLayout()
-        layout_saan.addWidget(self.labels['saan_k_torque'])
-        layout_saan.addWidget(self.labels['saan_max_torque'])
-        layout_saan.addWidget(self.labels['saan_power_PF'])
-        layout_saan.addWidget(self.labels['saan_power_DF'])
+        layout_saan = QGridLayout()
+        # Left column (indices 0-6)
+        layout_saan.addWidget(self.labels['saan_k_PF'], 0, 0)
+        layout_saan.addWidget(self.labels['saan_k_DF'], 1, 0)
+        layout_saan.addWidget(self.labels['saan_power_PF'], 2, 0)
+        layout_saan.addWidget(self.labels['saan_power_DF'], 3, 0)
+        layout_saan.addWidget(self.labels['saan_offset_PF'], 4, 0)
+        layout_saan.addWidget(self.labels['saan_offset_DF'], 5, 0)
+        layout_saan.addWidget(self.labels['saan_torque_limit'], 6, 0)
+        # Right column (indices 8-10)
+        layout_saan.addWidget(self.labels['saan_k_stiff'], 0, 1)
+        layout_saan.addWidget(self.labels['saan_d_stiff'], 1, 1)
+        layout_saan.addWidget(self.labels['saan_gamma_start'], 2, 1)
+        layout_saan.addWidget(self.labels['saan_gamma_stop'], 3, 1)
         
         # Tabs
         tabs_ref = QTabWidget()
@@ -410,6 +428,10 @@ class UIBuilder:
         tab1 = QWidget()
         tab2 = QWidget()
         
+        # Import and create realtime pMMG monitor tab
+        from realtime_pmmg_monitor import RealtimePMMGMonitor
+        tab3 = RealtimePMMGMonitor()
+        
         # Set layouts
         tab1.setLayout(self.build_tab1_layout())
         tab2.setLayout(self.build_tab2_layout())
@@ -417,6 +439,7 @@ class UIBuilder:
         # Add tabs
         tabs.addTab(tab1, "Human Walking Test")
         tabs.addTab(tab2, "System Identification")
+        tabs.addTab(tab3, "Real-time pMMG Monitor")
         
         main_layout.addWidget(tabs)
         central_widget.setLayout(main_layout)
@@ -428,6 +451,7 @@ class UIBuilder:
         self.tabs['main'] = tabs
         self.tabs['tab1'] = tab1
         self.tabs['tab2'] = tab2
+        self.tabs['tab3'] = tab3
         
         return {
             'central_widget': central_widget,
